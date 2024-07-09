@@ -640,6 +640,54 @@ func TestImageImmutability(t *testing.T) {
 	})
 }
 
+func TestSubjectStomping(t *testing.T) {
+	// if the subject is added after layers, it should be preserved
+
+	//success case
+	image := empty.Image
+	desc := v1.Descriptor{
+		MediaType: types.OCIManifestSchema1,
+		Digest: v1.Hash{
+			Algorithm: "sha256",
+			Hex:       "1234567890abcdef",
+		},
+		Size: 1234,
+	}
+
+	var err error
+	image, err = mutate.Append(image, mutate.Addendum{
+		Layer: mockLayer{},
+	})
+	if err != nil {
+		t.Fatalf("failed to append: %v", err)
+	}
+	image = mutate.Subject(image, desc).(v1.Image)
+	manifest, err := image.Manifest()
+	if err != nil {
+		t.Fatalf("failed to get manifest: %v", err)
+	}
+	if manifest.Subject == nil {
+		t.Fatalf("subject was not preserved")
+	}
+	//failure case (add subject first)
+	image = empty.Image
+
+	image = mutate.Subject(image, desc).(v1.Image)
+	image, err = mutate.Append(image, mutate.Addendum{
+		Layer: mockLayer{},
+	})
+	if err != nil {
+		t.Fatalf("failed to append: %v", err)
+	}
+	manifest, err = image.Manifest()
+	if err != nil {
+		t.Fatalf("failed to get manifest: %v", err)
+	}
+	if manifest.Subject == nil {
+		t.Fatalf("subject was not preserved")
+	}
+}
+
 func assertMTime(t *testing.T, layer v1.Layer, expectedTime time.Time) {
 	l, err := layer.Uncompressed()
 
